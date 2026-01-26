@@ -17,34 +17,57 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { Icon } from '../components'
-import { executeAgents, AgentState } from '../services/gemini'
-import { InfraNode, ArchitectureResponse } from '../services/schemas'
+import { executeAgents, AgentState, NormalizationResult, InfraNode, NodeCost } from '../services/gemini'
 
-// Custom node component
+// Icon mapping for node types
+const nodeTypeIcons: Record<string, string> = {
+    compute: 'memory',
+    storage: 'folder_open',
+    database: 'database',
+    network: 'hub',
+    security: 'security',
+    observability: 'monitoring',
+    messaging: 'message',
+    load_balancer: 'router',
+    cache: 'cached',
+    serverless: 'bolt',
+    other: 'widgets',
+}
+
+// Custom node component for architecture view
+interface NodeDisplayData {
+    infraNode: InfraNode
+    cost?: NodeCost
+}
+
 const InfraNodeComponent: React.FC<NodeProps> = ({ data, selected }) => {
-    const nodeData = data as unknown as InfraNode
+    const nodeData = data as unknown as NodeDisplayData
+    const node = nodeData.infraNode
+    const cost = nodeData.cost
+    const icon = nodeTypeIcons[node.node_type] || 'widgets'
+
     return (
         <div
             className={`relative bg-[#161b22]/90 backdrop-blur-md border-2 ${selected ? 'border-primary ring-4 ring-primary/10' : 'border-[#30363d]'
-                } rounded-xl p-4 w-48 shadow-2xl cursor-grab active:cursor-grabbing transition-all hover:border-primary/50`}
+                } rounded-xl p-4 w-52 shadow-2xl cursor-grab active:cursor-grabbing transition-all hover:border-primary/50`}
         >
             <Handle type="target" position={Position.Left} className="!bg-primary !w-2 !h-2" />
             <div className="flex items-center gap-3 mb-2">
                 <div
                     className={`size-10 ${selected ? 'bg-primary' : 'bg-[#30363d]'} rounded-lg flex items-center justify-center transition-colors`}
                 >
-                    <Icon name={nodeData.icon} className="text-white text-lg" />
+                    <Icon name={icon} className="text-white text-lg" />
                 </div>
-                <div>
-                    <h4 className="text-xs font-bold uppercase tracking-tight text-white">{nodeData.label}</h4>
-                    <p className="text-[10px] text-slate-500">{nodeData.region}</p>
+                <div className="flex-1 min-w-0">
+                    <h4 className="text-xs font-bold uppercase tracking-tight text-white truncate">{node.label}</h4>
+                    <p className="text-[10px] text-slate-500 truncate">{node.service_name}</p>
                 </div>
             </div>
             <div className="flex items-center justify-between mt-3 text-[10px] border-t border-[#30363d] pt-2">
-                <span className={`font-bold ${nodeData.status === 'Active' ? 'text-emerald-400' : nodeData.status === 'Warning' ? 'text-yellow-400' : 'text-slate-400'}`}>
-                    {nodeData.status}
+                <span className="font-bold text-emerald-400">{node.managed ? 'Managed' : 'Self-hosted'}</span>
+                <span className="text-primary font-bold">
+                    {cost ? `$${cost.monthly_cost_usd.toFixed(2)}` : 'N/A'}
                 </span>
-                <span className="text-primary font-bold">${nodeData.cost.toFixed(2)}</span>
             </div>
             <Handle type="source" position={Position.Right} className="!bg-primary !w-2 !h-2" />
         </div>
@@ -92,9 +115,12 @@ const ExecutionStep: React.FC<ExecutionStepProps> = ({ title, description, statu
 }
 
 // Convert API response to ReactFlow nodes
-function createNodesFromResponse(response: ArchitectureResponse): Node[] {
-    return response.nodes.map((node, index) => {
-        // Arrange in a grid-like pattern
+function createNodesFromResponse(result: NormalizationResult): Node[] {
+    const infra = result.final_architecture.infra
+    const costs = result.final_architecture.cost.per_node_costs
+    const costMap = new Map(costs.map(c => [c.node_id, c]))
+
+    return infra.nodes.map((node, index) => {
         const col = index % 3
         const row = Math.floor(index / 3)
 
@@ -102,34 +128,38 @@ function createNodesFromResponse(response: ArchitectureResponse): Node[] {
             id: node.id,
             type: 'infraNode',
             position: {
-                x: 100 + col * 250,
-                y: 80 + row * 180
+                x: 100 + col * 280,
+                y: 80 + row * 160
             },
-            data: node as unknown as Record<string, unknown>,
+            data: {
+                infraNode: node,
+                cost: costMap.get(node.id)
+            } as unknown as Record<string, unknown>,
         }
     })
 }
 
-function createEdgesFromResponse(response: ArchitectureResponse): Edge[] {
-    return response.edges.map((edge) => ({
-        id: `e-${edge.source}-${edge.target}`,
-        source: edge.source,
-        target: edge.target,
-        animated: true,
+function createEdgesFromResponse(result: NormalizationResult): Edge[] {
+    return result.final_architecture.infra.edges.map((edge) => ({
+        id: edge.id,
+        source: edge.from_node,
+        target: edge.to_node,
+        animated: edge.encrypted,
+        style: { stroke: edge.encrypted ? '#136dec' : '#4b5563' },
     }))
 }
 
 export const ArchitectureDesigner: React.FC = () => {
     const navigate = useNavigate()
     const location = useLocation()
-    const intent = (location.state as any)?.intent || 'Secure 3-tier VPC with auto-scaling'
+    const intent = (location.state as { intent?: string })?.intent || 'Secure 3-tier VPC with auto-scaling'
 
     const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
     const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
     const [selectedNode, setSelectedNode] = useState<Node | null>(null)
     const [isGenerating, setIsGenerating] = useState(true)
     const [error, setError] = useState<string | null>(null)
-    const [architectureData, setArchitectureData] = useState<ArchitectureResponse | null>(null)
+    const [architectureData, setArchitectureData] = useState<NormalizationResult | null>(null)
 
     const [agentState, setAgentState] = useState<AgentState>({
         intentParser: 'pending',
@@ -144,7 +174,7 @@ export const ArchitectureDesigner: React.FC = () => {
     useEffect(() => {
         const runAgents = async () => {
             try {
-                const result = await executeAgents(intent, 'aws', (state) => {
+                const result = await executeAgents(intent, (state) => {
                     setAgentState(state)
                 })
 
@@ -170,9 +200,13 @@ export const ArchitectureDesigner: React.FC = () => {
         setSelectedNode(node)
     }, [])
 
-    const nodeData = selectedNode?.data as InfraNode | undefined
-    const totalCost = architectureData?.cost.totalMonthlyCost || 0
-    const savings = architectureData?.cost.projectedSavings || 0
+    // Get selected node details
+    const selectedData = selectedNode?.data as unknown as NodeDisplayData | undefined
+    const selectedInfraNode = selectedData?.infraNode
+    const selectedCost = selectedData?.cost
+
+    const totalCost = architectureData?.final_architecture.cost.summary.total_monthly_cost_usd || 0
+    const provider = architectureData?.final_architecture.infra.provider_selected || 'aws'
 
     return (
         <div className="bg-[#0a0c10] text-slate-200 overflow-hidden h-screen flex flex-col">
@@ -203,16 +237,19 @@ export const ArchitectureDesigner: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2 px-3 py-1.5 bg-[#161b22] rounded-lg border border-[#30363d]">
+                        <Icon name="cloud" className="text-sm text-blue-400" />
+                        <span className="text-white text-sm font-bold uppercase">{provider}</span>
+                    </div>
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-[#161b22] rounded-lg border border-[#30363d]">
                         <Icon name="account_balance_wallet" className="text-sm text-slate-500" />
                         <span className="text-white text-sm font-bold">${totalCost.toFixed(2)}/mo</span>
-                        {savings > 0 && <span className="text-emerald-400 text-[10px] font-bold">(-${savings.toFixed(0)})</span>}
                     </div>
                     <button
-                        onClick={() => navigate('/compliance', { state: { architectureData } })}
+                        onClick={() => navigate('/cost', { state: { architectureData } })}
                         disabled={isGenerating}
                         className="flex items-center gap-2 rounded-lg h-10 px-6 bg-primary text-white text-sm font-bold hover:bg-blue-600 transition-all disabled:opacity-50 shadow-lg shadow-primary/20"
                     >
-                        Continue to Compliance
+                        Continue to Cost Analysis
                         <Icon name="arrow_forward" className="text-lg" />
                     </button>
                 </div>
@@ -253,7 +290,7 @@ export const ArchitectureDesigner: React.FC = () => {
                         </div>
                         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1 text-slate-500">
                             {agentState.logs.map((log, i) => (
-                                <p key={i} className={log.includes('ERROR') ? 'text-red-400' : log.includes('SUCCESS') ? 'text-emerald-400' : ''}>
+                                <p key={i} className={log.includes('ERROR') ? 'text-red-400' : log.includes('✓') ? 'text-emerald-400' : ''}>
                                     <span className="text-primary">{log.split(']')[0]}]</span>
                                     {log.split(']').slice(1).join(']')}
                                 </p>
@@ -313,73 +350,89 @@ export const ArchitectureDesigner: React.FC = () => {
                         <button className="flex-1 py-4 text-[10px] font-bold uppercase tracking-wider border-b-2 border-transparent text-slate-600 cursor-not-allowed" disabled>Security</button>
                     </div>
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                        {selectedNode && nodeData ? (
+                        {selectedNode && selectedInfraNode ? (
                             <div className="space-y-6">
                                 <div className="flex items-start justify-between">
                                     <div>
                                         <p className="text-slate-500 text-[10px] font-bold uppercase mb-1">Resource</p>
-                                        <h2 className="text-xl font-bold text-white">{nodeData.label}</h2>
+                                        <h2 className="text-xl font-bold text-white">{selectedInfraNode.label}</h2>
                                     </div>
-                                    <span className="px-2 py-1 rounded bg-primary/20 text-primary text-[10px] font-bold border border-primary/30">
-                                        {nodeData.type}
+                                    <span className="px-2 py-1 rounded bg-primary/20 text-primary text-[10px] font-bold border border-primary/30 uppercase">
+                                        {selectedInfraNode.node_type}
                                     </span>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="bg-[#161b22] p-3 rounded-lg border border-[#30363d]">
-                                        <p className="text-slate-500 text-[10px] font-bold uppercase mb-1">Region</p>
-                                        <p className="text-sm font-medium text-slate-200">{nodeData.region}</p>
+                                        <p className="text-slate-500 text-[10px] font-bold uppercase mb-1">Provider</p>
+                                        <p className="text-sm font-medium text-slate-200 uppercase">{selectedInfraNode.provider}</p>
                                     </div>
                                     <div className="bg-[#161b22] p-3 rounded-lg border border-[#30363d]">
-                                        <p className="text-slate-500 text-[10px] font-bold uppercase mb-1">Status</p>
-                                        <p className={`text-sm font-medium ${nodeData.status === 'Active' ? 'text-emerald-400' : nodeData.status === 'Warning' ? 'text-yellow-400' : 'text-slate-400'}`}>{nodeData.status}</p>
+                                        <p className="text-slate-500 text-[10px] font-bold uppercase mb-1">Service</p>
+                                        <p className="text-sm font-medium text-slate-200">{selectedInfraNode.service_name}</p>
                                     </div>
                                 </div>
 
                                 <div className="space-y-3">
                                     <h4 className="text-slate-400 text-[10px] font-bold uppercase tracking-widest border-b border-[#30363d] pb-2">Configuration</h4>
                                     <div className="flex justify-between items-center text-sm py-1 border-b border-[#161b22]">
-                                        <span className="text-slate-500">vCPUs</span>
-                                        <span className="text-slate-200 font-medium">{nodeData.specs.cpu}</span>
+                                        <span className="text-slate-500">Managed</span>
+                                        <span className={`font-medium ${selectedInfraNode.managed ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                                            {selectedInfraNode.managed ? 'Yes' : 'No'}
+                                        </span>
                                     </div>
-                                    <div className="flex justify-between items-center text-sm py-1 border-b border-[#161b22]">
-                                        <span className="text-slate-500">Memory</span>
-                                        <span className="text-slate-200 font-medium">{nodeData.specs.memory}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-sm py-1 border-b border-[#161b22]">
-                                        <span className="text-slate-500">Storage</span>
-                                        <span className="text-slate-200 font-medium">{nodeData.specs.storage}</span>
-                                    </div>
-                                    {nodeData.specs.instanceType && (
+                                    {selectedInfraNode.region && (
                                         <div className="flex justify-between items-center text-sm py-1 border-b border-[#161b22]">
-                                            <span className="text-slate-500">Instance Type</span>
-                                            <span className="text-slate-200 font-medium">{nodeData.specs.instanceType}</span>
+                                            <span className="text-slate-500">Region</span>
+                                            <span className="text-slate-200 font-medium">{selectedInfraNode.region}</span>
+                                        </div>
+                                    )}
+                                    {selectedInfraNode.size_class && (
+                                        <div className="flex justify-between items-center text-sm py-1 border-b border-[#161b22]">
+                                            <span className="text-slate-500">Size Class</span>
+                                            <span className="text-slate-200 font-medium">{selectedInfraNode.size_class}</span>
+                                        </div>
+                                    )}
+                                    {selectedInfraNode.scaling_model && (
+                                        <div className="flex justify-between items-center text-sm py-1 border-b border-[#161b22]">
+                                            <span className="text-slate-500">Scaling</span>
+                                            <span className="text-slate-200 font-medium">{selectedInfraNode.scaling_model}</span>
                                         </div>
                                     )}
                                 </div>
 
-                                <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
-                                    <p className="text-[10px] font-bold text-primary uppercase mb-2">Monthly Cost</p>
-                                    <p className="text-2xl font-bold text-white">${nodeData.cost.toFixed(2)}</p>
-                                </div>
-
-                                {nodeData.description && (
-                                    <div className="space-y-2">
-                                        <h4 className="text-slate-400 text-[10px] font-bold uppercase tracking-widest border-b border-[#30363d] pb-2">Description</h4>
-                                        <p className="text-sm text-slate-400 leading-relaxed">{nodeData.description}</p>
+                                {selectedCost && (
+                                    <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
+                                        <p className="text-[10px] font-bold text-primary uppercase mb-2">Monthly Cost</p>
+                                        <p className="text-2xl font-bold text-white">${selectedCost.monthly_cost_usd.toFixed(2)}</p>
+                                        {selectedCost.cost_drivers.length > 0 && (
+                                            <div className="mt-3 space-y-1">
+                                                <p className="text-[10px] text-slate-500 uppercase">Cost Drivers:</p>
+                                                {selectedCost.cost_drivers.map((driver, i) => (
+                                                    <p key={i} className="text-[11px] text-slate-400">• {driver}</p>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
-                                <div className="space-y-3">
-                                    <h4 className="text-slate-400 text-[10px] font-bold uppercase tracking-widest border-b border-[#30363d] pb-2">Compliance</h4>
-                                    <div className="flex items-center gap-3 p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-lg">
-                                        <Icon name="verified_user" className="text-emerald-500" />
-                                        <div className="flex-1">
-                                            <p className="text-xs font-bold text-slate-200">SOC2 Compliant</p>
-                                            <p className="text-[10px] text-slate-500">Audit logging enabled</p>
+                                <div className="space-y-2">
+                                    <h4 className="text-slate-400 text-[10px] font-bold uppercase tracking-widest border-b border-[#30363d] pb-2">Explanation</h4>
+                                    <p className="text-sm text-slate-400 leading-relaxed">{selectedInfraNode.explanation}</p>
+                                </div>
+
+                                {selectedInfraNode.depends_on && selectedInfraNode.depends_on.length > 0 && (
+                                    <div className="space-y-3">
+                                        <h4 className="text-slate-400 text-[10px] font-bold uppercase tracking-widest border-b border-[#30363d] pb-2">Dependencies</h4>
+                                        <div className="flex flex-wrap gap-2">
+                                            {selectedInfraNode.depends_on.map((dep) => (
+                                                <span key={dep} className="px-2 py-1 bg-[#161b22] border border-[#30363d] rounded text-[10px] text-slate-400">
+                                                    {dep}
+                                                </span>
+                                            ))}
                                         </div>
                                     </div>
-                                </div>
+                                )}
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center h-full text-center">
@@ -389,7 +442,6 @@ export const ArchitectureDesigner: React.FC = () => {
                             </div>
                         )}
                     </div>
-                    {/* Removed Configure and Remove buttons */}
                 </aside>
             </main>
         </div>

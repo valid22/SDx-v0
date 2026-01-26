@@ -1,35 +1,39 @@
 import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Icon } from '../components'
-import { ArchitectureResponse, InfraNode } from '../services/schemas'
+import type { NormalizationResult, InfraNode } from '../services/gemini'
+
+// Icon mapping for node types
+const nodeTypeIcons: Record<string, string> = {
+    compute: 'memory',
+    storage: 'folder_open',
+    database: 'database',
+    network: 'hub',
+    security: 'security',
+    observability: 'monitoring',
+    messaging: 'message',
+    load_balancer: 'router',
+    cache: 'cached',
+    serverless: 'bolt',
+    other: 'widgets',
+}
 
 // Resource card for blueprint view
-const ResourceCard: React.FC<{ node: InfraNode }> = ({ node }) => {
-    const colors: Record<string, string> = {
-        VPC: 'blue',
-        EC2: 'orange',
-        RDS: 'purple',
-        S3: 'cyan',
-        ALB: 'green',
-        Lambda: 'yellow',
-        EKS: 'indigo',
-        ElastiCache: 'red',
-        CloudFront: 'pink',
-        Route53: 'teal',
-        IAM: 'gray',
-    }
-    const color = colors[node.type] || 'blue'
+const ResourceCard: React.FC<{ node: InfraNode; cost?: number }> = ({ node, cost }) => {
+    const icon = nodeTypeIcons[node.node_type] || 'widgets'
 
     return (
         <div className="flex flex-col items-center gap-3 p-4 bg-[#161b22] border border-[#30363d] rounded-xl shadow-lg hover:border-primary/50 transition-all">
-            <div className={`size-14 bg-${color}-500/20 rounded-lg flex items-center justify-center`}>
-                <Icon name={node.icon} className={`text-${color}-400 text-2xl`} />
+            <div className="size-14 bg-primary/10 rounded-lg flex items-center justify-center">
+                <Icon name={icon} className="text-primary text-2xl" />
             </div>
             <div className="text-center">
                 <span className="text-xs font-bold text-white uppercase tracking-tight block">{node.label}</span>
-                <span className="text-[9px] text-slate-500 uppercase">{node.type}</span>
+                <span className="text-[9px] text-slate-500">{node.service_name}</span>
             </div>
-            <span className="text-[10px] text-primary font-bold">${node.cost.toFixed(2)}/mo</span>
+            <span className="text-[10px] text-primary font-bold">
+                {cost !== undefined ? `$${cost.toFixed(2)}/mo` : 'N/A'}
+            </span>
         </div>
     )
 }
@@ -37,13 +41,22 @@ const ResourceCard: React.FC<{ node: InfraNode }> = ({ node }) => {
 export const BlueprintApproval: React.FC = () => {
     const navigate = useNavigate()
     const location = useLocation()
-    const architectureData = (location.state as any)?.architectureData as ArchitectureResponse | undefined
+    const architectureData = (location.state as { architectureData?: NormalizationResult })?.architectureData
     const [isDeploying, setIsDeploying] = useState(false)
 
-    // Default data if none passed
-    const nodes = architectureData?.nodes || []
-    const cost = architectureData?.cost || { totalMonthlyCost: 0, projectedSavings: 0, breakdown: { compute: 0, storage: 0, network: 0, database: 0, other: 0 }, optimizations: [] }
-    const security = architectureData?.security || { overallHealth: 100, frameworks: [], issues: [] }
+    // Extract data from architecture result
+    const infra = architectureData?.final_architecture?.infra
+    const cost = architectureData?.final_architecture?.cost
+    const security = architectureData?.final_architecture?.security
+    const blueprint = architectureData?.blueprint
+
+    const nodes = infra?.nodes || []
+    const totalCost = cost?.summary?.total_monthly_cost_usd || 0
+    const provider = infra?.provider_selected || 'aws'
+    const regions = infra?.regions_used || []
+
+    // Create cost map for quick lookup
+    const costMap = new Map(cost?.per_node_costs?.map(c => [c.node_id, c.monthly_cost_usd]) || [])
 
     const handleDeploy = () => {
         setIsDeploying(true)
@@ -94,15 +107,17 @@ export const BlueprintApproval: React.FC = () => {
                             <p className="text-slate-500">Review the complete architecture before deployment</p>
                         </div>
 
-                        {/* Provider Badge */}
+                        {/* Provider & Summary Badges */}
                         <div className="flex items-center gap-4 mb-8">
                             <div className="p-4 bg-[#161b22] border border-[#30363d] rounded-xl flex items-center gap-4 shadow-lg">
                                 <div className="size-10 bg-blue-500/10 rounded flex items-center justify-center text-blue-400">
                                     <Icon name="cloud" className="text-2xl" />
                                 </div>
                                 <div>
-                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter block">AWS Production</span>
-                                    <span className="text-[10px] text-primary font-bold">us-east-1</span>
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter block">
+                                        {provider.toUpperCase()} Production
+                                    </span>
+                                    <span className="text-[10px] text-primary font-bold">{regions.join(', ') || 'us-east-1'}</span>
                                 </div>
                             </div>
                             <div className="p-4 bg-[#161b22] border border-[#30363d] rounded-xl flex items-center gap-6">
@@ -112,7 +127,7 @@ export const BlueprintApproval: React.FC = () => {
                                 </div>
                                 <div className="h-8 w-[1px] bg-[#30363d]" />
                                 <div className="text-center">
-                                    <div className="text-xl font-bold text-emerald-400">${cost.totalMonthlyCost.toFixed(2)}</div>
+                                    <div className="text-xl font-bold text-emerald-400">${totalCost.toFixed(2)}</div>
                                     <div className="text-[9px] text-slate-500 uppercase">Monthly</div>
                                 </div>
                             </div>
@@ -127,7 +142,7 @@ export const BlueprintApproval: React.FC = () => {
                             {nodes.length > 0 ? (
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                                     {nodes.map((node) => (
-                                        <ResourceCard key={node.id} node={node} />
+                                        <ResourceCard key={node.id} node={node} cost={costMap.get(node.id)} />
                                     ))}
                                 </div>
                             ) : (
@@ -144,23 +159,23 @@ export const BlueprintApproval: React.FC = () => {
                             )}
                         </div>
 
-                        {/* Cost Breakdown */}
+                        {/* Cost & Security Summary */}
                         <div className="grid grid-cols-2 gap-6 mb-8">
                             <div className="bg-[#161b22] rounded-xl p-6 border border-[#30363d]">
                                 <h3 className="text-sm font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
                                     <Icon name="payments" className="text-primary" />
-                                    Cost Breakdown
+                                    Cost Drivers
                                 </h3>
                                 <div className="space-y-3">
-                                    {Object.entries(cost.breakdown).map(([key, value]) => (
-                                        <div key={key} className="flex justify-between items-center">
-                                            <span className="text-slate-400 capitalize text-sm">{key}</span>
-                                            <span className="text-white font-bold">${value.toFixed(2)}</span>
+                                    {cost?.summary?.primary_cost_drivers?.slice(0, 5).map((driver, i) => (
+                                        <div key={i} className="flex items-center gap-2 text-sm">
+                                            <span className="text-primary">•</span>
+                                            <span className="text-slate-400">{driver}</span>
                                         </div>
-                                    ))}
+                                    )) || <p className="text-slate-500 text-sm">No cost drivers available</p>}
                                     <div className="border-t border-[#30363d] pt-3 flex justify-between items-center">
                                         <span className="text-white font-bold">Total</span>
-                                        <span className="text-primary font-bold text-lg">${cost.totalMonthlyCost.toFixed(2)}/mo</span>
+                                        <span className="text-primary font-bold text-lg">${totalCost.toFixed(2)}/mo</span>
                                     </div>
                                 </div>
                             </div>
@@ -168,40 +183,33 @@ export const BlueprintApproval: React.FC = () => {
                             <div className="bg-[#161b22] rounded-xl p-6 border border-[#30363d]">
                                 <h3 className="text-sm font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
                                     <Icon name="security" className="text-emerald-500" />
-                                    Security Summary
+                                    Compliance Status
                                 </h3>
-                                <div className="flex items-center gap-6 mb-4">
-                                    <div className="relative size-20">
-                                        <svg className="size-full -rotate-90" viewBox="0 0 36 36">
-                                            <circle className="stroke-[#30363d]" cx="18" cy="18" fill="none" r="16" strokeWidth="3" />
-                                            <circle
-                                                className="stroke-emerald-500"
-                                                cx="18" cy="18" fill="none" r="16"
-                                                strokeDasharray={`${security.overallHealth}, 100`}
-                                                strokeLinecap="round" strokeWidth="3"
-                                            />
-                                        </svg>
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <span className="text-sm font-bold">{security.overallHealth}%</span>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <p className="text-white font-bold">Overall Health</p>
-                                        <p className="text-slate-500 text-sm">{security.issues.filter(i => i.severity === 'critical').length} critical issues</p>
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    {security.frameworks.slice(0, 3).map((fw) => (
-                                        <div key={fw.name} className="flex justify-between items-center text-sm">
-                                            <span className="text-slate-400">{fw.name}</span>
-                                            <span className={`font-bold ${fw.compliance >= 80 ? 'text-emerald-400' : fw.compliance >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
-                                                {fw.compliance}%
+                                <div className="space-y-3">
+                                    {security?.compliance_status?.map((cs) => (
+                                        <div key={cs.framework} className="flex justify-between items-center text-sm">
+                                            <span className="text-slate-400">{cs.framework}</span>
+                                            <span className={`font-bold ${cs.compliant ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                {cs.compliant ? 'PASS' : 'FAIL'}
                                             </span>
                                         </div>
-                                    ))}
+                                    )) || <p className="text-slate-500 text-sm">No compliance data available</p>}
                                 </div>
                             </div>
                         </div>
+
+                        {/* Blueprint Summary */}
+                        {blueprint && (
+                            <div className="bg-[#161b22] rounded-xl p-6 border border-[#30363d] mb-8">
+                                <h3 className="text-sm font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
+                                    <Icon name="article" className="text-primary" />
+                                    Architecture Summary
+                                </h3>
+                                <p className="text-slate-400 text-sm leading-relaxed">
+                                    {infra?.high_level_summary || blueprint.overall_blueprint}
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </section>
 
@@ -220,48 +228,46 @@ export const BlueprintApproval: React.FC = () => {
                             <p className="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-2">
                                 Total Monthly Estimate
                             </p>
-                            <p className="text-3xl font-bold text-emerald-400">${cost.totalMonthlyCost.toFixed(2)}</p>
-                            {cost.projectedSavings > 0 && (
-                                <p className="text-[11px] text-slate-500 mt-2 flex items-center gap-2">
-                                    <Icon name="trending_down" className="text-emerald-400 text-sm" />
-                                    ${cost.projectedSavings.toFixed(2)} savings from AI optimization
-                                </p>
-                            )}
+                            <p className="text-3xl font-bold text-emerald-400">${totalCost.toFixed(2)}</p>
+                            <p className="text-[11px] text-slate-500 mt-2 flex items-center gap-2">
+                                <Icon name={cost?.summary?.within_budget ? 'check_circle' : 'warning'}
+                                    className={`text-sm ${cost?.summary?.within_budget ? 'text-emerald-400' : 'text-yellow-400'}`} />
+                                {cost?.summary?.within_budget ? 'Within budget constraints' : 'Review budget alignment'}
+                            </p>
                         </div>
 
-                        {/* Security Checks */}
+                        {/* Global Security Controls */}
                         <div className="space-y-3">
                             <h4 className="text-[10px] text-slate-500 uppercase font-bold tracking-widest border-b border-[#30363d] pb-2">
-                                Security Checks
+                                Security Controls
                             </h4>
-                            <div className="flex items-center gap-4 p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
-                                <Icon name="verified_user" className="text-emerald-500 text-xl" />
-                                <div className="flex-1">
-                                    <p className="text-xs font-bold text-white uppercase tracking-tight">IAM Least Privilege</p>
-                                    <p className="text-[10px] text-slate-500">Zero-trust roles enforced</p>
+                            {security?.global_controls?.slice(0, 4).map((control) => (
+                                <div key={control.control_name} className="flex items-center gap-4 p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
+                                    <Icon name={control.enforced ? 'verified_user' : 'gpp_maybe'}
+                                        className={control.enforced ? 'text-emerald-500 text-xl' : 'text-yellow-500 text-xl'} />
+                                    <div className="flex-1">
+                                        <p className="text-xs font-bold text-white uppercase tracking-tight">{control.control_name}</p>
+                                        <p className="text-[10px] text-slate-500">{control.description?.slice(0, 50)}...</p>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="flex items-center gap-4 p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
-                                <Icon name="lock" className="text-emerald-500 text-xl" />
-                                <div className="flex-1">
-                                    <p className="text-xs font-bold text-white uppercase tracking-tight">Encryption at Rest</p>
-                                    <p className="text-[10px] text-slate-500">AES-256 enabled on all storage</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-4 p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
-                                <Icon name="visibility" className="text-emerald-500 text-xl" />
-                                <div className="flex-1">
-                                    <p className="text-xs font-bold text-white uppercase tracking-tight">Audit Logging</p>
-                                    <p className="text-[10px] text-slate-500">CloudTrail & VPC Flow Logs active</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-4 p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
-                                <Icon name="gpp_good" className="text-emerald-500 text-xl" />
-                                <div className="flex-1">
-                                    <p className="text-xs font-bold text-white uppercase tracking-tight">SOC2 Compliant</p>
-                                    <p className="text-[10px] text-slate-500">All requirements satisfied</p>
-                                </div>
-                            </div>
+                            )) || (
+                                    <>
+                                        <div className="flex items-center gap-4 p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
+                                            <Icon name="verified_user" className="text-emerald-500 text-xl" />
+                                            <div className="flex-1">
+                                                <p className="text-xs font-bold text-white uppercase tracking-tight">IAM Least Privilege</p>
+                                                <p className="text-[10px] text-slate-500">Zero-trust roles enforced</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-4 p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
+                                            <Icon name="lock" className="text-emerald-500 text-xl" />
+                                            <div className="flex-1">
+                                                <p className="text-xs font-bold text-white uppercase tracking-tight">Encryption at Rest</p>
+                                                <p className="text-[10px] text-slate-500">AES-256 enabled on all storage</p>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
                         </div>
                     </div>
 
@@ -285,7 +291,7 @@ export const BlueprintApproval: React.FC = () => {
                             )}
                         </button>
                         <p className="text-center text-[10px] text-slate-500 mt-4">
-                            Terraform plan will be executed upon approval
+                            {architectureData?.final_architecture?.deploy_commands?.[0] || 'Terraform plan will be executed upon approval'}
                         </p>
                     </div>
                 </aside>
@@ -299,8 +305,8 @@ export const BlueprintApproval: React.FC = () => {
                         <span>Ready for Deployment</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Icon name="schedule" className="text-[14px]" />
-                        <span>Est. Deploy Time: 4m 30s</span>
+                        <Icon name="confidence" className="text-[14px]" />
+                        <span>Confidence: {(architectureData?.final_architecture?.confidence_score || 0.85) * 100}%</span>
                     </div>
                 </div>
                 <div className="flex items-center gap-6">

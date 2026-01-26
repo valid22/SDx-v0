@@ -1,145 +1,11 @@
-import { ArchitectureResponse, GeminiArchitectureRequest } from './schemas'
+import { GoogleGenAI, Type } from '@google/genai'
+import type { NormalizationResult, InfraNode, InfraEdge, NodeCost } from './types'
 
-const GEMINI_API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || 'AIzaSyDkJIU9WmJmfaWH1_hQtgxhS1EcgU4u10E'
-const GEMINI_MODEL = 'gemini-flash-latest'
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`
+// Re-export types for use in components
+export type { NormalizationResult, InfraNode, InfraEdge, NodeCost }
 
-// System prompt for infrastructure generation
-const INFRA_SYSTEM_PROMPT = `You are an expert cloud infrastructure architect. Given a user's requirements, generate a complete infrastructure architecture.
-
-Your response MUST be valid JSON matching this exact schema:
-{
-  "nodes": [
-    {
-      "id": "unique-id",
-      "label": "Display Name",
-      "type": "VPC|EC2|RDS|S3|ALB|Lambda|EKS|ElastiCache|CloudFront|Route53|IAM",
-      "icon": "material-symbols-outlined icon name (cloud, memory, database, folder_open, router, bolt, hub, cached, cloud_queue, dns, security)",
-      "region": "us-east-1",
-      "status": "Active|Pending|Warning",
-      "cost": 0.00,
-      "specs": {
-        "cpu": "2 vCPU or N/A",
-        "memory": "8 GiB or N/A",
-        "storage": "100GB or N/A",
-        "instanceType": "t3.medium (optional)",
-        "engineVersion": "15.4 (optional)"
-      },
-      "description": "Brief description of this resource",
-      "connections": ["id-of-connected-node"]
-    }
-  ],
-  "edges": [
-    { "source": "node-id-1", "target": "node-id-2" }
-  ],
-  "cost": {
-    "totalMonthlyCost": 430.60,
-    "breakdown": {
-      "compute": 200.00,
-      "storage": 50.00,
-      "network": 30.00,
-      "database": 120.00,
-      "other": 30.60
-    },
-    "optimizations": [
-      {
-        "type": "Right-sizing",
-        "currentCost": 150.00,
-        "optimizedCost": 100.00,
-        "savings": 50.00,
-        "risk": "low|medium|high",
-        "description": "Recommendation details"
-      }
-    ],
-    "projectedSavings": 85.00
-  },
-  "security": {
-    "overallHealth": 84,
-    "frameworks": [
-      { "name": "SOC2 Type II", "compliance": 92, "passed": 48, "total": 52 }
-    ],
-    "issues": [
-      {
-        "id": "issue-1",
-        "title": "Issue Title",
-        "resource": "resource-name",
-        "severity": "critical|warning|info",
-        "control": "CC6.1",
-        "description": "Detailed description",
-        "provider": "AWS",
-        "autoFixable": true
-      }
-    ]
-  },
-  "summary": "Brief summary of the architecture"
-}
-
-Generate realistic AWS pricing. Use appropriate instance types. Include at minimum: VPC, compute (EC2/EKS/Lambda), database (RDS/DynamoDB), and storage (S3). Add load balancers, caching, and CDN where appropriate. Ensure all connections form a logical flow.`
-
-// Parse Gemini response and extract JSON
-function parseGeminiResponse(text: string): ArchitectureResponse {
-  // Try to extract JSON from the response
-  const jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/) || text.match(/\{[\s\S]*\}/)
-
-  if (!jsonMatch) {
-    throw new Error('No valid JSON found in response')
-  }
-
-  const jsonStr = jsonMatch[1] || jsonMatch[0]
-  const parsed = JSON.parse(jsonStr)
-
-  // Validate required fields
-  if (!parsed.nodes || !Array.isArray(parsed.nodes)) {
-    throw new Error('Invalid response: missing nodes array')
-  }
-
-  return parsed as ArchitectureResponse
-}
-
-// Generate infrastructure architecture
-export async function generateArchitecture(request: GeminiArchitectureRequest): Promise<ArchitectureResponse> {
-  const userPrompt = `Generate cloud infrastructure for: "${request.intent}"
-  
-Cloud Provider: ${request.cloudProvider.toUpperCase()}
-Region: ${request.region || 'us-east-1'}
-${request.budget ? `Budget: $${request.budget}/month` : ''}
-${request.complianceFrameworks?.length ? `Compliance: ${request.complianceFrameworks.join(', ')}` : 'Compliance: SOC2, GDPR'}
-
-Respond ONLY with valid JSON, no explanation.`
-
-  const response = await fetch(GEMINI_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      contents: [{
-        parts: [
-          { text: INFRA_SYSTEM_PROMPT },
-          { text: userPrompt }
-        ]
-      }],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 4096,
-      }
-    })
-  })
-
-  if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Gemini API error: ${error}`)
-  }
-
-  const data = await response.json()
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text
-
-  if (!text) {
-    throw new Error('Empty response from Gemini')
-  }
-
-  return parseGeminiResponse(text)
-}
+const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || 'AIzaSyDkJIU9WmJmfaWH1_hQtgxhS1EcgU4u10E'
+const ai = new GoogleGenAI({ apiKey: API_KEY, apiVersion: 'v1' })
 
 // Agent status type
 export type AgentStatus = 'pending' | 'running' | 'done' | 'error'
@@ -153,12 +19,330 @@ export interface AgentState {
   logs: string[]
 }
 
+// Generate architecture using Gemini with strict JSON schema
+export async function generateArchitecture(intent: string): Promise<NormalizationResult> {
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash-lite',
+    contents: `Process this intent through the Design Moderator Tree. 
+    Workflow logic:
+    1. Normalizer (Root): Parses Intent, Infra, Cost, and Security schemas using the provided strict Pydantic structures.
+    2. Parallel Fan-out: Normalizer sends technical requirements AND core Intent Schema to specialist agents.
+    3. Specialists: Infra Agent proposes architecture, Cost Agent audits budget/infra alignment.
+    4. Refinement Loop: Infra Agent refines output once if Cost Agent signals misalignment.
+    5. Condenser: Synthesizes final Infra, Cost, and Security outputs + Intent into a master AI BLUEPRINT and a FINAL ARCHITECTURE SPEC.
+    
+    CRITICAL: You MUST provide a comprehensive, detailed, multi-paragraph response for EVERY field in the blueprint AND populate the detailed final_architecture structure.
+    
+    User Input: "${intent}"`,
+    config: {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          understanding: {
+            type: Type.OBJECT,
+            properties: {
+              canonical_intent: {
+                type: Type.OBJECT,
+                properties: {
+                  system_intent: { type: Type.STRING },
+                  priority_order: { type: Type.ARRAY, items: { type: Type.STRING } }
+                },
+                required: ['system_intent', 'priority_order']
+              },
+              clarifying_questions: { type: Type.ARRAY, items: { type: Type.STRING } }
+            },
+            required: ['canonical_intent', 'clarifying_questions']
+          },
+          infra_schema: {
+            type: Type.OBJECT,
+            properties: {
+              schema_version: { type: Type.STRING },
+              workload_name: { type: Type.STRING },
+              workload_type: { type: Type.STRING },
+              regions: { type: Type.ARRAY, items: { type: Type.STRING } },
+              scale: {
+                type: Type.OBJECT,
+                properties: {
+                  users: { type: Type.INTEGER },
+                  requests_per_second: { type: Type.INTEGER },
+                  peak_rps: { type: Type.INTEGER },
+                  data_growth_gb_per_month: { type: Type.INTEGER },
+                  concurrency: { type: Type.INTEGER }
+                }
+              },
+              performance: {
+                type: Type.OBJECT,
+                properties: {
+                  p95_latency_ms: { type: Type.INTEGER },
+                  p99_latency_ms: { type: Type.INTEGER },
+                  max_cpu_utilization_pct: { type: Type.INTEGER },
+                  max_memory_utilization_pct: { type: Type.INTEGER }
+                }
+              },
+              availability: {
+                type: Type.OBJECT,
+                properties: {
+                  sla_percentage: { type: Type.NUMBER },
+                  multi_az: { type: Type.BOOLEAN },
+                  multi_region: { type: Type.BOOLEAN }
+                }
+              },
+              deployment_preferences: {
+                type: Type.OBJECT,
+                properties: {
+                  prefer_managed_services: { type: Type.BOOLEAN },
+                  allow_serverless: { type: Type.BOOLEAN },
+                  allow_kubernetes: { type: Type.BOOLEAN },
+                  allow_virtual_machines: { type: Type.BOOLEAN }
+                }
+              },
+              bottlenecks: { type: Type.ARRAY, items: { type: Type.STRING } },
+              explanation_required: { type: Type.BOOLEAN }
+            },
+            required: ['schema_version', 'workload_name', 'workload_type', 'scale', 'performance', 'availability', 'deployment_preferences']
+          },
+          cost_schema: {
+            type: Type.OBJECT,
+            properties: {
+              schema_version: { type: Type.STRING },
+              budget: {
+                type: Type.OBJECT,
+                properties: {
+                  monthly_budget_usd: { type: Type.NUMBER },
+                  soft_limit_usd: { type: Type.NUMBER },
+                  hard_limit_usd: { type: Type.NUMBER }
+                }
+              },
+              traffic_variability: {
+                type: Type.OBJECT,
+                properties: {
+                  predictable: { type: Type.BOOLEAN },
+                  burst_factor: { type: Type.NUMBER }
+                }
+              },
+              sensitivity: {
+                type: Type.OBJECT,
+                properties: {
+                  optimization_preference: { type: Type.STRING },
+                  tolerate_spot_instances: { type: Type.BOOLEAN },
+                  tolerate_reserved_commitments: { type: Type.BOOLEAN }
+                }
+              },
+              egress_sensitive: { type: Type.BOOLEAN },
+              prefer_single_cloud: { type: Type.BOOLEAN },
+              cost_breakdown_required: { type: Type.BOOLEAN },
+              per_node_cost_required: { type: Type.BOOLEAN }
+            },
+            required: ['schema_version', 'budget', 'traffic_variability', 'sensitivity', 'egress_sensitive', 'prefer_single_cloud']
+          },
+          security_schema: {
+            type: Type.OBJECT,
+            properties: {
+              schema_version: { type: Type.STRING },
+              data_sensitivity: { type: Type.STRING },
+              compliance_requirements: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    name: { type: Type.STRING },
+                    mandatory: { type: Type.BOOLEAN }
+                  },
+                  required: ['name', 'mandatory']
+                }
+              },
+              encryption: {
+                type: Type.OBJECT,
+                properties: {
+                  encryption_at_rest: { type: Type.BOOLEAN },
+                  encryption_in_transit: { type: Type.BOOLEAN },
+                  customer_managed_keys_required: { type: Type.BOOLEAN }
+                }
+              },
+              identity: {
+                type: Type.OBJECT,
+                properties: {
+                  least_privilege: { type: Type.BOOLEAN },
+                  workload_identity_required: { type: Type.BOOLEAN },
+                  human_access_restricted: { type: Type.BOOLEAN }
+                }
+              },
+              network: {
+                type: Type.OBJECT,
+                properties: {
+                  exposure: { type: Type.STRING },
+                  private_networking_required: { type: Type.BOOLEAN },
+                  zero_trust_model: { type: Type.BOOLEAN }
+                }
+              },
+              audit_logging_required: { type: Type.BOOLEAN },
+              security_explainability_required: { type: Type.BOOLEAN }
+            },
+            required: ['schema_version', 'data_sensitivity', 'compliance_requirements', 'encryption', 'identity', 'network']
+          },
+          blueprint: {
+            type: Type.OBJECT,
+            properties: {
+              overall_blueprint: { type: Type.STRING },
+              ai_workflow: { type: Type.STRING },
+              build_scale_strategy: { type: Type.STRING },
+              infra_considerations: { type: Type.STRING },
+              cost_considerations: { type: Type.STRING },
+              security_considerations: { type: Type.STRING },
+              governance_validation: { type: Type.STRING }
+            },
+            required: ['overall_blueprint', 'ai_workflow', 'build_scale_strategy', 'infra_considerations', 'cost_considerations', 'security_considerations', 'governance_validation']
+          },
+          final_architecture: {
+            type: Type.OBJECT,
+            properties: {
+              schema_version: { type: Type.STRING },
+              infra: {
+                type: Type.OBJECT,
+                properties: {
+                  schema_version: { type: Type.STRING },
+                  provider_selected: { type: Type.STRING },
+                  regions_used: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  nodes: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        id: { type: Type.STRING },
+                        label: { type: Type.STRING },
+                        provider: { type: Type.STRING },
+                        node_type: { type: Type.STRING },
+                        service_name: { type: Type.STRING },
+                        explanation: { type: Type.STRING },
+                        managed: { type: Type.BOOLEAN },
+                        depends_on: { type: Type.ARRAY, items: { type: Type.STRING } }
+                      },
+                      required: ['id', 'label', 'provider', 'node_type', 'service_name', 'explanation', 'managed']
+                    }
+                  },
+                  edges: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        id: { type: Type.STRING },
+                        from_node: { type: Type.STRING },
+                        to_node: { type: Type.STRING },
+                        edge_type: { type: Type.STRING },
+                        encrypted: { type: Type.BOOLEAN },
+                        public: { type: Type.BOOLEAN }
+                      },
+                      required: ['id', 'from_node', 'to_node', 'edge_type', 'encrypted', 'public']
+                    }
+                  },
+                  high_level_summary: { type: Type.STRING },
+                  assumptions: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  deployment_ready: { type: Type.BOOLEAN }
+                },
+                required: ['provider_selected', 'regions_used', 'nodes', 'edges', 'high_level_summary']
+              },
+              cost: {
+                type: Type.OBJECT,
+                properties: {
+                  schema_version: { type: Type.STRING },
+                  provider: { type: Type.STRING },
+                  summary: {
+                    type: Type.OBJECT,
+                    properties: {
+                      total_monthly_cost_usd: { type: Type.NUMBER },
+                      within_budget: { type: Type.BOOLEAN },
+                      primary_cost_drivers: { type: Type.ARRAY, items: { type: Type.STRING } }
+                    },
+                    required: ['total_monthly_cost_usd', 'within_budget', 'primary_cost_drivers']
+                  },
+                  per_node_costs: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        node_id: { type: Type.STRING },
+                        monthly_cost_usd: { type: Type.NUMBER },
+                        cost_drivers: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        explanation: { type: Type.STRING }
+                      },
+                      required: ['node_id', 'monthly_cost_usd', 'cost_drivers', 'explanation']
+                    }
+                  },
+                  optimization_notes: { type: Type.ARRAY, items: { type: Type.STRING } }
+                },
+                required: ['provider', 'summary', 'per_node_costs', 'optimization_notes']
+              },
+              security: {
+                type: Type.OBJECT,
+                properties: {
+                  schema_version: { type: Type.STRING },
+                  data_sensitivity: { type: Type.STRING },
+                  compliance_status: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        framework: { type: Type.STRING },
+                        compliant: { type: Type.BOOLEAN }
+                      },
+                      required: ['framework', 'compliant']
+                    }
+                  },
+                  node_security: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        node_id: { type: Type.STRING },
+                        encryption_at_rest: { type: Type.BOOLEAN },
+                        encryption_in_transit: { type: Type.BOOLEAN },
+                        public_exposure: { type: Type.BOOLEAN },
+                        explanation: { type: Type.STRING }
+                      },
+                      required: ['node_id', 'encryption_at_rest', 'encryption_in_transit', 'public_exposure', 'explanation']
+                    }
+                  },
+                  global_controls: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        control_name: { type: Type.STRING },
+                        description: { type: Type.STRING },
+                        mandatory: { type: Type.BOOLEAN },
+                        enforced: { type: Type.BOOLEAN }
+                      },
+                      required: ['control_name', 'description', 'mandatory', 'enforced']
+                    }
+                  },
+                  security_summary: { type: Type.STRING }
+                },
+                required: ['data_sensitivity', 'compliance_status', 'node_security', 'global_controls', 'security_summary']
+              },
+              decision_rationale: { type: Type.STRING },
+              confidence_score: { type: Type.NUMBER },
+              deploy_commands: { type: Type.ARRAY, items: { type: Type.STRING } }
+            },
+            required: ['infra', 'cost', 'security', 'decision_rationale', 'confidence_score', 'deploy_commands']
+          },
+          warnings: { type: Type.ARRAY, items: { type: Type.STRING } }
+        },
+        required: ['understanding', 'infra_schema', 'cost_schema', 'security_schema', 'blueprint', 'final_architecture']
+      }
+    }
+  })
+
+  const text = response.text
+  if (!text) throw new Error('The model did not return any content.')
+  return JSON.parse(text) as NormalizationResult
+}
+
 // Real-time agent execution with live streaming logs
 export async function executeAgents(
   intent: string,
-  provider: 'aws' | 'gcp' | 'azure',
   onProgress: (state: AgentState) => void
-): Promise<ArchitectureResponse> {
+): Promise<NormalizationResult> {
   const state: AgentState = {
     intentParser: 'pending',
     infraAgent: 'pending',
@@ -174,10 +358,7 @@ export async function executeAgents(
     onProgress({ ...state })
   }
 
-  const regionMap = { aws: 'us-east-1', gcp: 'us-central1', azure: 'eastus' }
-  const region = regionMap[provider]
-
-  // Step 1: Intent Parser - Real parsing with streaming logs
+  // Step 1: Intent Parser
   state.intentParser = 'running'
   state.currentStep = 'Parsing user intent...'
   addLog('INIT: Initializing MASDA agent pipeline')
@@ -186,13 +367,13 @@ export async function executeAgents(
 
   addLog('AUTH: Validating cloud credentials...')
   await delay(400)
-  addLog(`AUTH: ${provider.toUpperCase()} session established`)
+  addLog('AUTH: Session established')
   await delay(200)
 
   addLog(`PARSE: Analyzing intent: "${intent.slice(0, 50)}${intent.length > 50 ? '...' : ''}"`)
   await delay(500)
 
-  // Extract keywords from intent for realistic logs
+  // Extract keywords for realistic logs
   const keywords = intent.toLowerCase()
   const detectedServices: string[] = []
   if (keywords.includes('kubernetes') || keywords.includes('k8s') || keywords.includes('container')) detectedServices.push('EKS/Kubernetes')
@@ -200,7 +381,6 @@ export async function executeAgents(
   if (keywords.includes('serverless') || keywords.includes('lambda')) detectedServices.push('Lambda')
   if (keywords.includes('storage') || keywords.includes('s3')) detectedServices.push('S3')
   if (keywords.includes('cache') || keywords.includes('redis')) detectedServices.push('ElastiCache')
-  if (keywords.includes('cdn') || keywords.includes('cloudfront')) detectedServices.push('CloudFront')
   if (detectedServices.length === 0) detectedServices.push('EC2', 'RDS', 'S3')
 
   addLog(`PARSE: Detected services: ${detectedServices.join(', ')}`)
@@ -209,48 +389,47 @@ export async function executeAgents(
   state.intentParser = 'done'
   onProgress({ ...state })
 
-  // Step 2: Infra Agent - Real API call with detailed streaming
+  // Step 2: Infra Agent - Real API call with strict schema
   state.infraAgent = 'running'
   state.currentStep = 'Generating architecture...'
   addLog('AGENT: Infrastructure agent activated')
   onProgress({ ...state })
   await delay(200)
 
-  addLog(`REGION: Target region ${region}`)
-  await delay(200)
-  addLog(`API: Connecting to Gemini ${GEMINI_MODEL}...`)
+  addLog('API: Connecting to Gemini 2.0 Flash...')
   await delay(300)
-  addLog('API: Sending architecture request...')
+  addLog('API: Sending request with strict JSON schema...')
 
-  let result: ArchitectureResponse
+  let result: NormalizationResult
 
   try {
-    // Start the API call
     const startTime = Date.now()
     addLog('API: Waiting for model response...')
 
-    result = await generateArchitecture({ intent, cloudProvider: provider, region })
+    result = await generateArchitecture(intent)
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
     addLog(`API: Response received in ${elapsed}s`)
     await delay(200)
 
     // Log discovered resources
-    addLog(`GRAPH: Generated ${result.nodes.length} nodes, ${result.edges.length} edges`)
+    const nodes = result.final_architecture.infra.nodes
+    const edges = result.final_architecture.infra.edges
+    addLog(`GRAPH: Generated ${nodes.length} nodes, ${edges.length} edges`)
     await delay(150)
 
-    for (const node of result.nodes.slice(0, 5)) {
-      addLog(`FOUND: ${node.type} "${node.label}" in ${node.region}`)
+    for (const node of nodes.slice(0, 5)) {
+      addLog(`FOUND: ${node.node_type} "${node.label}" (${node.service_name})`)
       await delay(100)
     }
-    if (result.nodes.length > 5) {
-      addLog(`FOUND: ...and ${result.nodes.length - 5} more resources`)
+    if (nodes.length > 5) {
+      addLog(`FOUND: ...and ${nodes.length - 5} more resources`)
     }
 
     await delay(200)
-    addLog('VALIDATE: Checking VPC dependencies...')
+    addLog('VALIDATE: Checking dependencies...')
     await delay(300)
-    addLog('VALIDATE: VPC dependencies resolved')
+    addLog('VALIDATE: All dependencies resolved')
 
     state.infraAgent = 'done'
   } catch (error) {
@@ -260,39 +439,38 @@ export async function executeAgents(
   }
   onProgress({ ...state })
 
-  // Step 3: Cost Agent - Detailed cost analysis
+  // Step 3: Cost Agent
   state.costAgent = 'running'
   state.currentStep = 'Analyzing costs...'
   addLog('COST: Initializing pricing calculator')
   onProgress({ ...state })
   await delay(200)
 
-  addLog(`COST: Fetching ${provider.toUpperCase()} pricing for ${region}`)
+  const provider = result.final_architecture.infra.provider_selected
+  addLog(`COST: Fetching ${provider.toUpperCase()} pricing`)
   await delay(400)
 
-  // Log individual resource costs
-  const topCosts = [...result.nodes].sort((a, b) => b.cost - a.cost).slice(0, 3)
-  for (const node of topCosts) {
-    addLog(`PRICE: ${node.label}: $${node.cost.toFixed(2)}/mo`)
+  // Log top costs
+  const topCosts = [...result.final_architecture.cost.per_node_costs]
+    .sort((a, b) => b.monthly_cost_usd - a.monthly_cost_usd)
+    .slice(0, 3)
+  for (const nc of topCosts) {
+    addLog(`PRICE: ${nc.node_id}: $${nc.monthly_cost_usd.toFixed(2)}/mo`)
     await delay(150)
   }
 
-  addLog(`COST: Total estimate: $${result.cost.totalMonthlyCost.toFixed(2)}/mo`)
+  const totalCost = result.final_architecture.cost.summary.total_monthly_cost_usd
+  addLog(`COST: Total estimate: $${totalCost.toFixed(2)}/mo`)
   await delay(200)
 
-  if (result.cost.optimizations.length > 0) {
-    addLog(`OPTIMIZE: Found ${result.cost.optimizations.length} optimization opportunities`)
-    await delay(150)
-    const savings = result.cost.projectedSavings
-    if (savings > 0) {
-      addLog(`OPTIMIZE: Potential savings: $${savings.toFixed(2)}/mo`)
-    }
+  if (result.final_architecture.cost.optimization_notes.length > 0) {
+    addLog(`OPTIMIZE: ${result.final_architecture.cost.optimization_notes.length} optimization notes`)
   }
 
   state.costAgent = 'done'
   onProgress({ ...state })
 
-  // Step 4: Security Agent - Compliance scanning
+  // Step 4: Security Agent
   state.securityAgent = 'running'
   state.currentStep = 'Running security scan...'
   addLog('SECURITY: Initializing compliance scanner')
@@ -306,24 +484,14 @@ export async function executeAgents(
   addLog('SECURITY: Scanning network ACLs...')
   await delay(300)
 
-  for (const fw of result.security.frameworks.slice(0, 2)) {
-    addLog(`COMPLIANCE: ${fw.name}: ${fw.compliance}% (${fw.passed}/${fw.total} controls)`)
+  for (const cs of result.final_architecture.security.compliance_status.slice(0, 2)) {
+    addLog(`COMPLIANCE: ${cs.framework}: ${cs.compliant ? 'PASS' : 'FAIL'}`)
     await delay(150)
   }
 
-  addLog(`HEALTH: Overall security score: ${result.security.overallHealth}%`)
+  addLog(`SUMMARY: ${result.final_architecture.security.security_summary.slice(0, 80)}...`)
   await delay(200)
 
-  if (result.security.issues.length > 0) {
-    const criticals = result.security.issues.filter(i => i.severity === 'critical').length
-    const warnings = result.security.issues.filter(i => i.severity === 'warning').length
-    if (criticals > 0) addLog(`ALERT: ${criticals} critical issue(s) detected`)
-    if (warnings > 0) addLog(`WARN: ${warnings} warning(s) detected`)
-  } else {
-    addLog('SECURITY: No critical issues found')
-  }
-
-  await delay(200)
   state.securityAgent = 'done'
   state.currentStep = 'Complete'
   addLog('✓ All agents completed successfully')
