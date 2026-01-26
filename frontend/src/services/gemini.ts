@@ -4,8 +4,8 @@ import type { NormalizationResult, InfraNode, InfraEdge, NodeCost } from './type
 // Re-export types for use in components
 export type { NormalizationResult, InfraNode, InfraEdge, NodeCost }
 
-const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || 'AIzaSyDkJIU9WmJmfaWH1_hQtgxhS1EcgU4u10E'
-const ai = new GoogleGenAI({ apiKey: API_KEY, apiVersion: 'v1' })
+const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || 'AIzaSyAtaPLZOk2PO61JwWShqyDrc4u6xQqJ2Q4'
+const ai = new GoogleGenAI({ apiKey: API_KEY })
 
 // Agent status type
 export type AgentStatus = 'pending' | 'running' | 'done' | 'error'
