@@ -1,0 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
+@import "tailwindcss";
+
+/* Custom theme */
+@theme {
+  --color-primary: #136dec;
+  --color-accent: #7000ff;
+  --color-background-light: #f6f7f8;
+  --color-background-dark: #0a0c10;
+  --color-surface-dark: #161b22;
+  --color-border-muted: #30363d;
+  --color-panel-bg: #111418;
+  --color-panel-dark: #111418;
+  --color-vpc-border: #ff4d94;
+  --color-subnet-border: #f97316;
+  --color-card-bg: #1c2027;
+  --color-border-dark: #1f2937;
+  --color-accent-cyan: #0ea5e9;
+
+  --font-family-display: "Space Grotesk", sans-serif;
+  --font-family-sans: "Inter", sans-serif;
+  --font-family-mono: "JetBrains Mono", monospace;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-family-display);
+    background-color: var(--color-background-dark);
+    color: white;
+    overflow: hidden;
+  }
+}
+
+@layer components {
+  .intent-gradient {
+    background: linear-gradient(180deg, rgba(19, 109, 236, 0.05) 0%, rgba(16, 24, 34, 0) 100%);
+  }
+
+  .grid-bg {
+    background-image: radial-gradient(circle at 2px 2px, #1a1a1a 1px, transparent 0);
+    background-size: 32px 32px;
+  }
+
+  .glass-panel {
+    background: rgba(22, 27, 34, 0.7);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(48, 54, 61, 0.8);
+    border-radius: 0.75rem;
+  }
+
+  .flow-line {
+    stroke: #136dec;
+    stroke-width: 1.5;
+    stroke-dasharray: 6 4;
+    fill: none;
+    opacity: 0.6;
+  }
+
+  .flow-line-active {
+    stroke: #136dec;
+    stroke-width: 2;
+    fill: none;
+    filter: drop-shadow(0 0 4px #136dec);
+  }
+}
+
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #2d333b;
+    border-radius: 10px;
+  }
+}
+
+/* Material Icons */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* React Flow custom styles */
+.react-flow__node {
+  cursor: grab;
+}
+
+.react-flow__node:active {
+  cursor: grabbing;
+}
+
+.react-flow__edge-path {
+  stroke: #136dec;
+  stroke-width: 2;
+}
