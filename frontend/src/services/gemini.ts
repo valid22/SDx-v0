@@ -4,8 +4,23 @@ import type { NormalizationResult, InfraNode, InfraEdge, NodeCost } from './type
 // Re-export types for use in components
 export type { NormalizationResult, InfraNode, InfraEdge, NodeCost }
 
-const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || 'AIzaSyAtaPLZOk2PO61JwWShqyDrc4u6xQqJ2Q4'
-const ai = new GoogleGenAI({ apiKey: API_KEY })
+// Get API key from sessionStorage (user-provided) or fallback to env variable
+function getApiKey(): string {
+  if (typeof window !== 'undefined') {
+    const storedKey = sessionStorage.getItem('gemini_api_key')
+    if (storedKey) return storedKey
+  }
+  return import.meta.env.VITE_GOOGLE_API_KEY || ''
+}
+
+// Create AI client lazily to use the latest API key
+function getAiClient(): GoogleGenAI {
+  const apiKey = getApiKey()
+  if (!apiKey) {
+    throw new Error('No Gemini API key provided. Please enter your API key on the initiation page.')
+  }
+  return new GoogleGenAI({ apiKey })
+}
 
 // Agent status type
 export type AgentStatus = 'pending' | 'running' | 'done' | 'error'
@@ -21,8 +36,9 @@ export interface AgentState {
 
 // Generate architecture using Gemini with strict JSON schema
 export async function generateArchitecture(intent: string): Promise<NormalizationResult> {
+  const ai = getAiClient()
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-lite',
+    model: 'gemini-flash-latest', //'gemini-2.5-flash-lite',
     contents: `Process this intent through the Design Moderator Tree. 
     Workflow logic:
     1. Normalizer (Root): Parses Intent, Infra, Cost, and Security schemas using the provided strict Pydantic structures.

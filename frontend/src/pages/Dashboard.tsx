@@ -39,12 +39,20 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ title, provider, status }) =>
 export const Dashboard: React.FC = () => {
     const navigate = useNavigate()
     const [intent, setIntent] = useState('')
+    const [apiKey, setApiKey] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return sessionStorage.getItem('gemini_api_key') || ''
+        }
+        return ''
+    })
+    const [showApiKey, setShowApiKey] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
 
     const handleSubmit = () => {
-        if (intent.trim()) {
+        if (intent.trim() && apiKey.trim()) {
+            // Store API key in session storage
+            sessionStorage.setItem('gemini_api_key', apiKey.trim())
             setIsLoading(true)
-            // Simulate processing then navigate directly to designer
             setTimeout(() => {
                 navigate('/designer', { state: { intent } })
             }, 1500)
@@ -86,6 +94,40 @@ export const Dashboard: React.FC = () => {
                             optimize, and secure your cloud architecture automatically.
                         </p>
 
+                        {/* API Key Input */}
+                        <div className="max-w-3xl mx-auto mb-6">
+                            <div className="flex items-center gap-3 bg-[#161b22] border border-[#30363d] rounded-xl px-4 py-3">
+                                <Icon name="key" className="text-primary text-xl" />
+                                <input
+                                    type={showApiKey ? 'text' : 'password'}
+                                    value={apiKey}
+                                    onChange={(e) => setApiKey(e.target.value)}
+                                    placeholder="Enter your Gemini API key..."
+                                    className="flex-1 bg-transparent text-white placeholder:text-slate-500 focus:outline-none font-mono text-sm"
+                                />
+                                <button
+                                    onClick={() => setShowApiKey(!showApiKey)}
+                                    className="text-slate-500 hover:text-white transition-colors"
+                                >
+                                    <Icon name={showApiKey ? 'visibility_off' : 'visibility'} className="text-xl" />
+                                </button>
+                                {apiKey && (
+                                    <span className="text-emerald-500 text-[10px] font-bold uppercase flex items-center gap-1">
+                                        <Icon name="check_circle" className="text-sm" />
+                                        Ready
+                                    </span>
+                                )}
+                                <a
+                                    href="https://aistudio.google.com/apikey"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[10px] text-primary hover:underline font-medium"
+                                >
+                                    Get Key
+                                </a>
+                            </div>
+                        </div>
+
                         {/* Intent Input */}
                         <div className="relative max-w-3xl mx-auto">
                             <div className={`bg-[#161b22] border ${isLoading ? 'border-primary' : 'border-[#30363d]'} rounded-2xl overflow-hidden shadow-2xl transition-all ${isLoading ? 'ring-4 ring-primary/20' : ''}`}>
@@ -112,7 +154,7 @@ export const Dashboard: React.FC = () => {
                                     </div>
                                     <button
                                         onClick={handleSubmit}
-                                        disabled={!intent.trim() || isLoading}
+                                        disabled={!intent.trim() || !apiKey.trim() || isLoading}
                                         className="flex items-center gap-2 px-8 py-3 bg-primary text-white font-bold rounded-xl hover:bg-blue-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20"
                                     >
                                         {isLoading ? (
