@@ -3,7 +3,7 @@ name = "masda"
 version = "0.1.0"
 description = "Multi-Agent Infra Arch Solution Design Agent - AI-driven Infrastructure as a Service"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
 authors = [{ name = "MASDA Team" }]
 keywords = ["ai", "infrastructure", "multi-cloud", "aws", "gcp", "azure", "fastapi"]
