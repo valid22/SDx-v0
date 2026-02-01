@@ -345,7 +345,8 @@ export async function generateArchitecture(intent: string): Promise<Normalizatio
           warnings: { type: Type.ARRAY, items: { type: Type.STRING } }
         },
         required: ['understanding', 'infra_schema', 'cost_schema', 'security_schema', 'blueprint', 'final_architecture']
-      }
+      },
+      temperature: 0.5
     }
   })
 
