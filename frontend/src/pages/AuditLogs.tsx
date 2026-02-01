@@ -13,7 +13,7 @@ export const AuditLogs: React.FC = () => {
                         </div>
                         <h1 className="text-3xl font-black text-white mb-2">Agent Orchestration Audit</h1>
                         <p className="text-sm text-slate-500">
-                            Session: <span className="font-mono text-slate-300">AX-9021-MASDA</span>
+                            Session: <span className="font-mono text-slate-300">AX-9021-MAADS</span>
                         </p>
                     </div>
                     <div className="flex gap-3">

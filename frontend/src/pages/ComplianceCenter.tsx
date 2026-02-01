@@ -88,8 +88,8 @@ const FrameworkCard: React.FC<FrameworkCardProps> = ({ name, compliance, control
         <div
             onClick={onClick}
             className={`p-5 rounded-xl cursor-pointer transition-all ${selected
-                    ? 'bg-primary/5 border border-primary/40 ring-1 ring-primary/20'
-                    : 'bg-[#161b22]/40 border border-[#30363d] hover:border-slate-500/30'
+                ? 'bg-primary/5 border border-primary/40 ring-1 ring-primary/20'
+                : 'bg-[#161b22]/40 border border-[#30363d] hover:border-slate-500/30'
                 }`}
         >
             <div className="flex items-center justify-between mb-4">
@@ -130,7 +130,7 @@ export const ComplianceCenter: React.FC = () => {
                                 <path d="M4 42.4379C4 42.4379 14.0962 36.0744 24 41.1692C35.0664 46.8624 44 42.2078 44 42.2078L44 7.01134C44 7.01134 35.068 11.6577 24.0031 5.96913C14.0971 0.876274 4 7.27094 4 7.27094L4 42.4379Z" fill="currentColor" />
                             </svg>
                         </div>
-                        <h2 className="text-2xl font-bold tracking-tight">MASDA</h2>
+                        <h2 className="text-2xl font-bold tracking-tight">MAADS</h2>
                     </div>
                     <div className="h-8 w-[1px] bg-[#30363d]" />
                     <div className="flex items-center gap-6">

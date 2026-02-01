@@ -82,7 +82,7 @@ export const CostAnalysis: React.FC = () => {
                             <Icon name="deployed_code" className="text-primary text-xl" />
                         </div>
                         <div className="flex flex-col">
-                            <h1 className="text-sm font-bold leading-none tracking-[0.2em] uppercase">MASDA AI</h1>
+                            <h1 className="text-sm font-bold leading-none tracking-[0.2em] uppercase">MAADS AI</h1>
                             <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">Infrastructure Platform</p>
                         </div>
                     </div>

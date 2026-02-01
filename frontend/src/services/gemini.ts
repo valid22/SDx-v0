@@ -378,7 +378,7 @@ export async function executeAgents(
   // Step 1: Intent Parser
   state.intentParser = 'running'
   state.currentStep = 'Parsing user intent...'
-  addLog('INIT: Initializing MASDA agent pipeline')
+  addLog('INIT: Initializing MAADS agent pipeline')
   onProgress({ ...state })
   await delay(300)
 

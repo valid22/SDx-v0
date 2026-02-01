@@ -2,7 +2,7 @@
     <html class="dark" lang="en"><head>
         <meta charset="utf-8" />
         <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-        <title>05 Cost &amp; Sensitivity Analysis | MASDA AI</title>
+        <title>05 Cost &amp; Sensitivity Analysis | MAADS AI</title>
         <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
         <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet" />
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet" />
@@ -73,7 +73,7 @@
                                 <span class="material-symbols-outlined text-primary text-xl">deployed_code</span>
                             </div>
                             <div class="flex flex-col">
-                                <h1 class="text-sm font-bold leading-none tracking-[0.2em] uppercase">MASDA AI</h1>
+                                <h1 class="text-sm font-bold leading-none tracking-[0.2em] uppercase">MAADS AI</h1>
                                 <p class="text-[10px] text-slate-500 font-bold uppercase mt-1">Infrastructure Platform</p>
                             </div>
                         </div>

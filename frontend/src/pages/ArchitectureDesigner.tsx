@@ -220,7 +220,7 @@ export const ArchitectureDesigner: React.FC = () => {
                             </svg>
                         </div>
                         <div className="flex flex-col">
-                            <h2 className="text-white text-lg font-bold leading-tight">MASDA</h2>
+                            <h2 className="text-white text-lg font-bold leading-tight">MAADS</h2>
                             <span className="text-[10px] text-primary font-bold uppercase tracking-widest">Step 2: Architecture Synthesis</span>
                         </div>
                     </div>

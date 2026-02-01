@@ -24,7 +24,7 @@ export const Header: React.FC<HeaderProps> = ({ step, title, nextLabel, nextPath
                             />
                         </svg>
                     </div>
-                    <h2 className="text-white text-xl font-bold leading-tight tracking-tight">MASDA</h2>
+                    <h2 className="text-white text-xl font-bold leading-tight tracking-tight">MAADS</h2>
                 </Link>
                 {step && (
                     <div className="hidden md:flex items-center gap-4">

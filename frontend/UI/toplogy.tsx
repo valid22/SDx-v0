@@ -2,7 +2,7 @@
     <html class="dark" lang="en"><head>
         <meta charset="utf-8" />
         <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-        <title>MASDA | Network Topology Map</title>
+        <title>MAADS | Network Topology Map</title>
         <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
         <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet" />
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet" />
@@ -77,7 +77,7 @@
                                 <path d="M4 42.4379C4 42.4379 14.0962 36.0744 24 41.1692C35.0664 46.8624 44 42.2078 44 42.2078L44 7.01134C44 7.01134 35.068 11.6577 24.0031 5.96913C14.0971 0.876274 4 7.27094 4 7.27094L4 42.4379Z" fill="currentColor"></path>
                             </svg>
                         </div>
-                        <h2 class="text-white text-xl font-bold leading-tight tracking-[-0.015em] font-display uppercase">MASDA</h2>
+                        <h2 class="text-white text-xl font-bold leading-tight tracking-[-0.015em] font-display uppercase">MAADS</h2>
                     </div>
                     <div class="h-8 w-[1px] bg-border-muted"></div>
                     <div class="flex items-center gap-8">

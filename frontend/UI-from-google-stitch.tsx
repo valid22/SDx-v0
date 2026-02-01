@@ -3,7 +3,7 @@
         <head>
             <meta charset="utf-8" />
             <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-            <title>MASDA | AI Cloud Infrastructure Orchestrator</title>
+            <title>MAADS | AI Cloud Infrastructure Orchestrator</title>
             <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
             <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
             <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
@@ -104,7 +104,7 @@
                                     <path d="M4 42.4379C4 42.4379 14.0962 36.0744 24 41.1692C35.0664 46.8624 44 42.2078 44 42.2078L44 7.01134C44 7.01134 35.068 11.6577 24.0031 5.96913C14.0971 0.876274 4 7.27094 4 7.27094L4 42.4379Z" fill="currentColor"></path>
                                 </svg>
                             </div>
-                            <h2 className="text-slate-900 dark:text-white text-xl font-bold leading-tight tracking-tight">MASDA</h2>
+                            <h2 className="text-slate-900 dark:text-white text-xl font-bold leading-tight tracking-tight">MAADS</h2>
                         </Link>
                         {step && (
                             <div className="hidden md:flex items-center gap-4">
@@ -450,7 +450,7 @@
                     <aside className="w-64 border-r border-border-dark flex flex-col p-6 bg-background-dark/80">
                         <div className="flex items-center gap-3 mb-10">
                             <div className="bg-primary/20 border border-primary/40 rounded p-1.5"><span className="material-symbols-outlined text-primary">deployed_code</span></div>
-                            <h1 className="text-sm font-bold uppercase tracking-widest">MASDA AI</h1>
+                            <h1 className="text-sm font-bold uppercase tracking-widest">MAADS AI</h1>
                         </div>
                         <nav className="flex flex-col gap-2">
                             <a className="flex items-center gap-3 px-3 py-2 bg-primary/10 border-l-2 border-primary text-primary" href="#"><span className="material-symbols-outlined text-lg">bolt</span><span className="text-xs font-bold uppercase tracking-widest">Optimization</span></a>
@@ -588,7 +588,7 @@
                                     <span className="material-symbols-outlined text-sm">history_edu</span> Transparency Layer
                                 </div>
                                 <h1 className="text-3xl font-black text-slate-900 dark:text-white mb-2">Agent Orchestration Audit</h1>
-                                <p className="text-sm text-slate-500">Session: <span className="font-mono text-slate-300">AX-9021-MASDA</span></p>
+                                <p className="text-sm text-slate-500">Session: <span className="font-mono text-slate-300">AX-9021-MAADS</span></p>
                             </div>
                             <div className="flex gap-3">
                                 <button className="flex items-center px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm font-bold"><span className="material-symbols-outlined mr-2 text-lg">download</span> Export</button>
