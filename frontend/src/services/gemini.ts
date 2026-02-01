@@ -38,7 +38,7 @@ export interface AgentState {
 export async function generateArchitecture(intent: string): Promise<NormalizationResult> {
   const ai = getAiClient()
   const response = await ai.models.generateContent({
-    model: 'gemini-flash-latest', //'gemini-2.5-flash-lite',
+    model: 'gemini-2.5-flash-lite', //'gemini-flash-latest', //'gemini-2.5-flash-lite',
     contents: `Process this intent through the Design Moderator Tree. 
     Workflow logic:
     1. Normalizer (Root): Parses Intent, Infra, Cost, and Security schemas using the provided strict Pydantic structures.
